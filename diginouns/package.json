@@ -12,6 +12,7 @@
     "@noir-lang/backend_barretenberg": "^0.22.0",
     "@noir-lang/noir_js": "^0.22.0",
     "ace-builds": "^1.32.7",
+    "acorn": "^8.11.3",
     "eslint": "8.56.0",
     "eslint-config-next": "14.1.0",
     "ethers": "^5.7.2",

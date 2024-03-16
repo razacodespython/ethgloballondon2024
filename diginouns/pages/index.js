@@ -3,12 +3,36 @@ import { Noir } from "@noir-lang/noir_js";
 import circuit from "../Circuits/target/circuits.json"
 import { useState } from "react";
 import { ethers } from "ethers";
+import AceEditor from 'react-ace';
+import { parse } from 'acorn';
+import { useEffect } from "react";
+import 'ace-builds/src-noconflict/mode-javascript';
+import 'ace-builds/src-noconflict/theme-github';
 
 export default function Home() {
   const [addi, setPublickey] = useState();
   const [network, setNetwork] = useState();
   const [chainId, setChainId] = useState();
   const [msg, setMsg] = useState();
+
+
+  // const template = `function Attack(x, y) {
+  //   // Your logic here
+  //   return x * y;
+  // }`;
+  const [code, setCode] = useState("");
+
+  useEffect(() => {
+    // Fetch the template from the public directory
+    fetch('/template.json')
+      .then(response => response.json())
+      .then(data => {
+        // Set the fetched template as the initial code
+        setCode(data.template);
+      })
+      .catch(error => console.error("Failed to load the template:", error));
+  }, []);
+  
 
   const connectButton = async () => {
     const { ethereum } = window;
@@ -24,7 +48,7 @@ export default function Home() {
     }
   };
 
-  const sendProof = async (message) => {
+  const sendProof = async (inputt) => {
     console.log("generating proof");
 
     const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
@@ -36,12 +60,12 @@ export default function Home() {
     const backend = new BarretenbergBackend(circuit);
     const noir = new Noir(circuit, backend);
 
-    const input = {
-      output: 10,
-      x: 5,
-      y: 2,
-    };
-
+    // const input = {
+    //   output: 10,
+    //   x: 5,
+    //   y: 2,
+    // };
+    const input = inputt
     console.log("got the input next step generating proof");
     console.log(input);
     // document.getElementById("web3_message").textContent="Generating proof... ⌛";
@@ -53,18 +77,12 @@ export default function Home() {
     var publicInputs = Array.from(proof.publicInputs.values());
     var proofHex = "0x" + Buffer.from(proof.proof).toString("hex");
     console.log(proofHex)
-
-    // const proofKey = proofHex.substring(0, 50);
-    // const proofObject = { [proofKey]: proofHex };
     const abi = [
       "function verify(bytes calldata _proof, bytes32[] calldata _publicInputs) external view returns (bool)",
     ];
-    //0xC3b6837660CB6E4728ED0879db0a63D4E8a83d24
-    //old
-    //0x02801ed0D4A5dFd0bf82C074e1f40FBcb4a2e24F
 
     const verifierContract = new ethers.Contract(
-      "0x09e82Db155798F759D6788c41cd72B047a018355",
+      "0x6ed543470f2ABed29b97A32AA46d25A18c1E4c7c",
       abi,
       signer
     );
@@ -76,7 +94,94 @@ export default function Home() {
     if (verificationResponse == true) {
       console.log("Verification successful!");
     }
+
+
+    function extractParametersFromFunction(functionCode) {
+      const ast = parse(functionCode, {ecmaVersion: 2020});
+      if (ast.body[0] && ast.body[0].type === 'FunctionDeclaration') {
+        const params = ast.body[0].params.map(param => param.name);
+        return params;
+      }
+      return [];
+    }
+
+    const userFunctionCode = `function Attack(x, y) {
+      return x * y;
+    }`;
+    
+    const params = extractParametersFromFunction(userFunctionCode);
+    console.log(params); // Output: ['x', 'y']
+    
   };
+  const onRun = (userCode) => {
+    try {
+      // Attempt to extract function parameters using regular expression
+      const paramsRegex = /function\s+\w*\s*\(([^)]*)\)/;
+      const matches = paramsRegex.exec(userCode);
+
+      if (!matches || matches.length < 2) {
+        console.error("No valid function found.");
+        return;
+      }
+
+      // Extract parameters and split into an array, trimming whitespace
+      const params = matches[1].split(',').map(param => param.trim());
+      console.log("Extracted parameters:", params);
+
+      // Example: Proceed with using these parameters as needed
+    } catch (error) {
+      console.error("Error extracting parameters:", error);
+    }
+  };
+
+  function parseCodeToInput(code) {
+    // Define regular expressions for the lines of interest
+    const attackPowerRegex = /let (\w+AttackPower) = (\d+);/g;
+    const sequenceRegex = /let attackSequence = \[([^\]]+)\];/;
+  
+    // Object to store the extracted values
+    const input = {
+      fireAttack: 0,
+      waterAttack: 0,
+      earthAttack: 0,
+      windAttack: 0,
+      attackSequence: [],
+    };
+  
+    // Extract attack powers
+    let match;
+    while ((match = attackPowerRegex.exec(code)) !== null) {
+      // match[1] is the variable name, match[2] is the value
+      const element = match[1].replace('AttackPower', '').toLowerCase(); // Convert to lowercase and remove 'AttackPower'
+      if (input.hasOwnProperty(element + 'Attack')) { // Check if the property exists in the input object
+        input[element + 'Attack'] = parseInt(match[2], 10);
+      }
+    }
+  
+    // Extract attack sequence
+    // const sequenceMatch = sequenceRegex.exec(code);
+    // if (sequenceMatch) {
+    //   input.attackSequence = sequenceMatch[1].replace(/'/g, '').split(',').map(element => element.trim());
+    // }
+  
+    return input;
+  }
+  const handleSubmit = () => {
+    const input = parseCodeToInput(code); // Parse the code from the editor
+    console.log(input);
+    console.log(input.windAttack)
+    const sendInput = {
+        x: input.fireAttack,
+        y: input.waterAttack,
+        z: input.windAttack,
+        a: input.earthAttack,
+      };
+    sendProof(sendInput)
+    // Here, you could use the 'input' object for further processing,
+    // such as passing it to your circuit for verification
+  };
+  
+  
   return (
     <>
       <h1>Hello world</h1>
@@ -85,9 +190,19 @@ export default function Home() {
       <p>Address: {addi}</p>
       <p>Network: {network}</p>
       <p>Chain ID : {chainId}</p>
-      {msg && <p>{msg}</p>}
-      <button onClick={() => sendProof("Ethticket")}>Get proof</button>
-      {/* Button to generate QR code */}
+      <button onClick={() => sendProof()}>Get proof</button>
+      <AceEditor
+        mode="javascript"
+        theme="github"
+        onChange={setCode}
+        name="codeEditor"
+        editorProps={{ $blockScrolling: true }}
+        value={code}
+        height="400px" // Double the default height
+        width="100%"
+        style={{fontSize: '16px'}} // Example of adjusting the font size
+      />
+      <button onClick={handleSubmit}>Submit Code</button>
       
     </>
   );
