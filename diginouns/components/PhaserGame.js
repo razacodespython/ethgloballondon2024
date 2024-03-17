@@ -317,7 +317,7 @@ function PhaserGame() {
     ];
 
     const verifierContract = new ethers.Contract(
-      "0x6ed543470f2ABed29b97A32AA46d25A18c1E4c7c",
+      "0x7f4Fa2e46E346393FbD84469fe39fBc222f43d16",
       abi,
       signer
     );
@@ -404,10 +404,10 @@ function PhaserGame() {
   console.log(input);
   console.log(input.windAttack)
   const sendInput = {
-      x: input.fireAttack,
-      y: input.waterAttack,
-      z: input.windAttack,
-      a: input.earthAttack,
+      fire: input.fireAttack,
+      water: input.waterAttack,
+      earth: input.windAttack,
+      wind: input.earthAttack,
     };
   sendProof(sendInput)
   // Here, you could use the 'input' object for further processing,
