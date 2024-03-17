@@ -6,6 +6,14 @@ import AceEditor from 'react-ace';
 import 'ace-builds/src-noconflict/mode-javascript';
 import 'ace-builds/src-noconflict/theme-github';
 import template from '../public/template.json';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { BarretenbergBackend } from "@noir-lang/backend_barretenberg";
+import { Noir } from "@noir-lang/noir_js";
+import circuit from "../Circuits/target/circuits.json"
+import { ethers } from "ethers";
+import { parse } from 'acorn';
+
 // Function to split a string into chunks of a specified maximum size, without splitting words.
 function chunkText(str, maxChunkSize) {
   let chunks = [];
@@ -36,35 +44,40 @@ class IntroScene extends Phaser.Scene {
     super({ key: 'IntroScene' });
   }
 
-  // Preload function to load images before the scene starts
   preload() {
     this.load.image('background', '/forestbackground.jpg');
     this.load.image('character', '/taco500.png');
   }
 
-  // Create function to set up the scene once it starts
   create() {
-    // Fade in effect for the scene's start
     this.cameras.main.fadeIn(2000, 0, 0, 0);
-
-    // Setting up the background and character images
     this.add.image(this.cameras.main.width / 2, this.cameras.main.height / 2, 'background').setDisplaySize(this.sys.game.config.width, this.sys.game.config.height);
-    this.add.image(400, this.cameras.main.height / 2 - 150, 'character').setScale(0.075);
+    
+    // Adjusted character image position to be lower
+    const characterYPosition = this.cameras.main.height / 3; // Increased Y position to move lower
+    const characterScale = 0.05;
+    this.add.image(this.cameras.main.width / 2, characterYPosition, 'character').setScale(characterScale);
 
-    // Creating a graphics object for a text background
+    // Adjusted textbox position to be lower and align with the character image
     const graphics = this.add.graphics();
+    const rectWidth = 600;
+    const rectHeight = 80;
+    const rectX = (this.cameras.main.width - rectWidth) / 2;
+    const rectY = characterYPosition + 100; // Adjust so it's slightly below the character image
     graphics.fillStyle(0x000000, 0.8);
-    graphics.fillRect(50, this.cameras.main.height / 2 - 50, 700, 100);
+    graphics.fillRect(rectX, rectY, rectWidth, rectHeight);
 
-    // The narrative text for the intro scene
+    // Adjusted display text to fit within the new textbox position
     const fullText = "Welcome to the game!";
     const textChunks = chunkText(fullText, 60);
     let currentChunkIndex = 0;
-    let isTyping = false; // Flag to prevent advancing text while typing
+    let isTyping = false;
+    const displayText = this.add.text(rectX + 10, rectY + 10, '', {
+      font: '16px Courier',
+      fill: '#ffffff',
+      wordWrap: { width: rectWidth - 20 },
+    });
 
-    const displayText = this.add.text(60, this.cameras.main.height / 2 + 10, '', { font: '16px Courier', fill: '#ffffff', wordWrap: { width: 680 } });
-
-    // Function to type out text gradually
     const typeTextGradually = (text) => {
       isTyping = true;
       displayText.setText('');
@@ -82,7 +95,6 @@ class IntroScene extends Phaser.Scene {
       });
     };
 
-    // Function to display the next chunk of text or transition to the next scene
     const displayNextChunk = () => {
       if (currentChunkIndex < textChunks.length && !isTyping) {
         typeTextGradually(textChunks[currentChunkIndex]);
@@ -95,14 +107,12 @@ class IntroScene extends Phaser.Scene {
       }
     };
 
-    // Key listener to advance the text with the 'A' button
     this.input.keyboard.on('keydown-A', () => {
       if (!isTyping) {
         displayNextChunk();
       }
     });
 
-    // Start displaying the intro text immediately
     displayNextChunk();
   }
 }
@@ -209,8 +219,8 @@ const gameConfig = {
     mode: Phaser.Scale.FIT,
     parent: 'game-container',
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    width: 800,
-    height: 600,
+    width: 600,
+    height: 400,
   },
   scene: [IntroScene, ChallengeScene] // Include both scenes in the game
 };
@@ -219,6 +229,8 @@ function PhaserGame() {
 
   const [modalIsOpen, setIsOpen] = useState(false);
   const [code, setCode] = useState(template.template);
+  const [addi, setPublickey] = useState();
+  const [network, setNetwork] = useState();
 
   useEffect(() => {
     Modal.setAppElement('#game-container');
@@ -239,17 +251,199 @@ function PhaserGame() {
   //   console.log('Open modal for the code challenge here.');
   //   setIsOpen(true); // This function now correctly has access to setIsOpen
   // };
+  
+  const sendProof = async (inputt) => {
+    toast.success('generating proof', {
+      position: "top-right",
+      autoClose: 15000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      theme: "dark",
+      });
+    console.log("generating proof");
+    //await setup();
+    const provider = new ethers.providers.Web3Provider(window.ethereum, "any");
+    await provider.send("eth_requestAccounts", []);
+    const signer = provider.getSigner();
+    const signerAddress = await signer.getAddress();
+    console.log("Account:", signerAddress);
+
+    const backend = new BarretenbergBackend(circuit);
+    const noir = new Noir(circuit, backend);
+
+    // const input = {
+    //   output: 10,
+    //   x: 5,
+    //   y: 2,
+    // };
+    const input = inputt
+    toast.success('got the input', {
+      position: "top-right",
+      autoClose: 15000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      theme: "dark",
+      });
+    console.log("got the input next step generating proof");
+    console.log(input);
+    // document.getElementById("web3_message").textContent="Generating proof... ⌛";
+    var proof = await noir.generateFinalProof(input);
+
+    toast.success('proof generation done', {
+      position: "top-right",
+      autoClose: 15000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      theme: "dark",
+      });
+
+    console.log("proof generation done");
+    console.log(proof.proof)
+
+    var publicInputs = Array.from(proof.publicInputs.values());
+    var proofHex = "0x" + Buffer.from(proof.proof).toString("hex");
+    console.log(proofHex)
+    const abi = [
+      "function verify(bytes calldata _proof, bytes32[] calldata _publicInputs) external view returns (bool)",
+    ];
+
+    const verifierContract = new ethers.Contract(
+      "0x6ed543470f2ABed29b97A32AA46d25A18c1E4c7c",
+      abi,
+      signer
+    );
+
+    const verificationResponse = await verifierContract.verify(
+      proofHex,
+      publicInputs
+    );
+    if (verificationResponse == true) {
+      toast.success('verification done', {
+        position: "top-right",
+        autoClose: 15000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        });
+      console.log("Verification successful!");
+    }
+
+
+    function extractParametersFromFunction(functionCode) {
+      const ast = parse(functionCode, {ecmaVersion: 2020});
+      if (ast.body[0] && ast.body[0].type === 'FunctionDeclaration') {
+        const params = ast.body[0].params.map(param => param.name);
+        return params;
+      }
+      return [];
+    }
+
+    const userFunctionCode = `function Attack(x, y) {
+      return x * y;
+    }`;
+    
+    const params = extractParametersFromFunction(userFunctionCode);
+    console.log(params); // Output: ['x', 'y']
+    
+  };
+  function parseCodeToInput(code) {
+    // Define regular expressions for the lines of interest
+    const attackPowerRegex = /let (\w+AttackPower) = (\d+);/g;
+    const sequenceRegex = /let attackSequence = \[([^\]]+)\];/;
+  
+    // Object to store the extracted values
+    const input = {
+      fireAttack: 0,
+      waterAttack: 0,
+      earthAttack: 0,
+      windAttack: 0,
+      attackSequence: [],
+    };
+  
+    // Extract attack powers
+    let match;
+    while ((match = attackPowerRegex.exec(code)) !== null) {
+      // match[1] is the variable name, match[2] is the value
+      const element = match[1].replace('AttackPower', '').toLowerCase(); // Convert to lowercase and remove 'AttackPower'
+      if (input.hasOwnProperty(element + 'Attack')) { // Check if the property exists in the input object
+        input[element + 'Attack'] = parseInt(match[2], 10);
+      }
+    }
+  
+    // Extract attack sequence
+    // const sequenceMatch = sequenceRegex.exec(code);
+    // if (sequenceMatch) {
+    //   input.attackSequence = sequenceMatch[1].replace(/'/g, '').split(',').map(element => element.trim());
+    // }
+  
+    return input;
+  }
+  
+   
+ 
 
   const closeModal = () => {
     setIsOpen(false);
   };
 
+  const handleSubmit = () => { 
+
+  const input = parseCodeToInput(code); // Parse the code from the editor
+  console.log(input);
+  console.log(input.windAttack)
+  const sendInput = {
+      x: input.fireAttack,
+      y: input.waterAttack,
+      z: input.windAttack,
+      a: input.earthAttack,
+    };
+  sendProof(sendInput)
+  // Here, you could use the 'input' object for further processing,
+  // such as passing it to your circuit for verification
+    // toast.success('Your proof is here!', {
+    //   position: "top-right",
+    //   autoClose: 15000,
+    //   hideProgressBar: false,
+    //   closeOnClick: true,
+    //   pauseOnHover: true,
+    //   draggable: true,
+    //   progress: undefined,
+    //   theme: "dark",
+    //   });
+
+
+  }
+
   // return (
   //   <div id="game-container" style={{ width: '100%', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }} />
   // );
   return (
-    <div id="game-container" style={{ width: '100%', height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+    <div id="game-container" style={{ marginTop:'100px', width: '900px', height: '550px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
       {/* <button onClick={openCodeChallengeModal}>Open Code Challenge</button> */}
+      <ToastContainer
+            position="top-right"
+            autoClose={5000}
+            hideProgressBar={true}
+            newestOnTop={false}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="dark"
+        />
       <Modal
         isOpen={modalIsOpen}
         onRequestClose={closeModal}
@@ -278,7 +472,8 @@ function PhaserGame() {
           height="90%"
           width="100%"
         />
-        <button onClick={closeModal}>Close</button>
+        {/* <button onClick={closeModal}>Close</button> */}
+        <button onClick={handleSubmit}>Submit</button>
       </Modal>
     </div>
   );
